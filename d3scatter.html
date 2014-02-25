@@ -27,27 +27,18 @@
 		<script type="text/javascript">
 
 			//Width and height
+			var dataset = [];
 			var w = 500;
 			var h = 300;
 			var padding = 30;
-			
-			//Dynamic, random dataset
-			var dataset = [];											//Initialize empty array
-			var numDataPoints = 50;										//Number of dummy data points to create
-			var maxRange = Math.random() * 1000;						//Max range of new values
-			for (var i = 0; i < numDataPoints; i++) {					//Loop numDataPoints times
-				var newNumber1 = Math.floor(Math.random() * maxRange);	//New random integer
-				var newNumber2 = Math.floor(Math.random() * maxRange);	//New random integer
-				dataset.push([newNumber1, newNumber2]);					//Add new number to array
-			}
 
 			//Create scale functions
 			var xScale = d3.scale.linear()
-								 .domain([0, d3.max(dataset, function(d) { return d[0]; })])
+								 .domain([0, 1])
 								 .range([padding, w - padding * 2]);
 
 			var yScale = d3.scale.linear()
-								 .domain([0, d3.max(dataset, function(d) { return d[1]; })])
+								 .domain([0, 1])
 								 .range([h - padding, padding]);
 
 			//Define X axis
@@ -67,19 +58,6 @@
 						.append("svg")
 						.attr("width", w)
 						.attr("height", h);
-
-			//Create circles
-			svg.selectAll("circle")
-			   .data(dataset)
-			   .enter()
-			   .append("circle")
-			   .attr("cx", function(d) {
-			   		return xScale(d[0]);
-			   })
-			   .attr("cy", function(d) {
-			   		return yScale(d[1]);
-			   })
-			   .attr("r", 2);
 			
 			//Create X axis
 			svg.append("g")
@@ -94,51 +72,139 @@
 				.call(yAxis);
 
                         
+			function keyfunc(d)
+			{
+				return d.key;
+			}
+			function data_updated()
+			{
+				//New values for dataset
+				var numValues = 100;						 		//Count original length of dataset
+				var maxRange = Math.random() * 1000;						//Max range of new values
+				dataset = [];  						 				 		//Initialize empty array
+				for (var i = 0; i < numValues; i++) {				 		//Loop numValues times
+					var newNumber1 = Math.floor(Math.random() * maxRange);	//New random integer
+					var newNumber2 = Math.floor(Math.random() * maxRange);	//New random integer
+					dataset.push({key: i, x: newNumber1, y: newNumber2});					//Add new number to array
+				}
+				plot();
+				return;
+			}
+			function plot()
+			{
+
+				//Update scale domains.
+				xScale.domain([0, d3.max(dataset, function(d) { return d.x; })]);
+				yScale.domain([0, d3.max(dataset, function(d) { return d.y; })]);
+				// Add any new records. 
+				svg.selectAll("circle")
+		   			.data(dataset, keyfunc)
+		   			.enter()
+		   			.append("circle")
+		   			.attr("cx", function(d) {
+		   				return xScale(d.x);
+		   			})
+		   			.attr("cy", function(d) {
+		  				return yScale(d.y);
+		   			})
+		   			.attr("r", 2);
+
+				//Update all circles
+				svg.selectAll("circle")
+				   .data(dataset, keyfunc)
+				   .transition()
+				   .duration(1000)		
+				   .attr("cx", function(d) {
+				   		return xScale(d.x);
+				   })
+				   .attr("cy", function(d) {
+				   		return yScale(d.y);
+				   });
+
+				//Update X axis
+				svg.select(".x.axis")
+			    	.transition()
+			    	.duration(1000)
+					.call(xAxis);
+				
+				//Update Y axis
+				svg.select(".y.axis")
+			    	.transition()
+			    	.duration(1000)
+					.call(yAxis);
+			};
+
+            function weave_setup_properties(baseName, properties_template)
+            {
+            	var weaveInterface = {};
+                weaveInterface.properties = {};
+
+                /* Shared keysets used for cross-tool integration */
+                weaveInterface.probe_keyset = weave.path("defaultProbeKeySet");
+                weaveInterface.select_keyset = weave.path("defaultSelectionKeySet");
+                weaveInterface.subset_keyset = weave.path("defaultSubsetKeyFilter");
+
+                
+                /* TODO: Test if the tool already exists and set a variable indicating we're restoring from session state */
+                /* Request the base tool object */
+                weaveInterface.path = weave.path([baseName]).request([], "LinkableHashMap");
+
+                /* Dynamically create the relevant properties from the template, and bind the specified callbacks */
+                for (var variableType in properties_template)
+                {
+                    var variables = {};
+                    for (var variableName in properties_template[variableType])
+                    {
+                        var localPath = weave.path([baseName, variableName]).request([], variableType);
+                        variables[variableName] = localPath;
+
+                        localPath.addCallback(properties_template[variableType][variableName]);
+                    }
+                    weaveInterface.properties[variableType] = variables;
+                }
+                return weaveInterface;
+            };
+
+            var toolInterface;
+
+            function scale_changed(){};
+            function size_changed(){};
+            function probe_changed(){};
+            function selection_changed(){};
+            function subset_changed(){};
+
+			function weave_setup() 
+            {
+            	if (window.weave === undefined) window.weave = opener.weave;
+
+                var properties_template = {
+                    DynamicColumn: {'x': data_updated,
+                                    'y': data_updated,
+                                    'color': data_updated,
+                                    'size': data_updated
+                    },
+
+                    LinkableString: {'scaleType': scale_changed },
+
+                    LinkableNumber: {'default_size':size_changed,
+                    				 'max_size':size_changed,
+                    				 'min_size':size_changed
+                    				}
+                };
+                if (name == "") name = "WeaveD3Scatter";
+               	
+               	toolInterface = weave_setup_properties(name, properties_template);
+               	toolInterface.probe_keyset.addCallback(probe_changed);
+                toolInterface.select_keyset.addCallback(selection_changed);
+                toolInterface.subset_keyset.addCallback(subset_changed);
+
+            };
 
 			//On click, update with new data			
-			d3.select("p")
-				.on("click", function() {
-
-					//New values for dataset
-					var numValues = dataset.length;						 		//Count original length of dataset
-					var maxRange = Math.random() * 1000;						//Max range of new values
-					dataset = [];  						 				 		//Initialize empty array
-					for (var i = 0; i < numValues; i++) {				 		//Loop numValues times
-						var newNumber1 = Math.floor(Math.random() * maxRange);	//New random integer
-						var newNumber2 = Math.floor(Math.random() * maxRange);	//New random integer
-						dataset.push([newNumber1, newNumber2]);					//Add new number to array
-					}
-					
-					//Update scale domains
-					xScale.domain([0, d3.max(dataset, function(d) { return d[0]; })]);
-					yScale.domain([0, d3.max(dataset, function(d) { return d[1]; })]);
-
-					//Update all circles
-					svg.selectAll("circle")
-					   .data(dataset)
-					   .transition()
-					   .duration(1000)		
-					   .attr("cx", function(d) {
-					   		return xScale(d[0]);
-					   })
-					   .attr("cy", function(d) {
-					   		return yScale(d[1]);
-					   });
-
-					//Update X axis
-					svg.select(".x.axis")
-				    	.transition()
-				    	.duration(1000)
-						.call(xAxis);
-					
-					//Update Y axis
-					svg.select(".y.axis")
-				    	.transition()
-				    	.duration(1000)
-						.call(yAxis);
-
-				});
-
+			d3.select("p").on("click", data_updated);
+			// Initial update. 
+			
+			weave_setup();
 
             </script>	
 </body></html>
