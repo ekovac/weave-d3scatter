@@ -21,9 +21,6 @@
 		</style>
 	<style type="text/css"></style></head>
 	<body>
-	
-		<p>Click on this text to update the chart with new data values as many times as you like!</p>
-	
 		<script type="text/javascript">
 
 			//Width and height
@@ -54,24 +51,43 @@
 							  .ticks(5);
 
 			//Create SVG element
-			var svg = d3.select("body")
-						.append("svg")
-						.attr("width", w)
-						.attr("height", h);
-			
-			//Create X axis
-			svg.append("g")
-				.attr("class", "x axis")
-				.attr("transform", "translate(0," + (h - padding) + ")")
-				.call(xAxis);
-			
-			//Create Y axis
-			svg.append("g")
-				.attr("class", "y axis")
-				.attr("transform", "translate(" + padding + ",0)")
-				.call(yAxis);
+			var svg = d3.select("body").append("svg");
+			//Create element groups for the axes.
+			var yAxisElement = svg.append("g").attr("class", "y axis").call(yAxis);
 
-                        
+			var xAxisElement = svg.append("g").attr("class", "x axis").call(xAxis);
+
+			update_layout();
+
+			function update_layout()
+			{
+
+				//Modify SVG
+				svg.attr("width", w).attr("height", h);
+				//Create X axis
+				xAxisElement.attr("transform", "translate(0," + (h - padding) + ")");
+				
+				//Create Y axis
+				yAxisElement.attr("transform", "translate(" + padding + ",0)");
+
+				// Update xScale and yScale according to changes in padding
+				xScale.range([padding, w - padding * 2]);
+				yScale.range([h - padding, padding]);
+
+				plot();
+			}
+
+            function get_windowsize()
+            {
+            	/* Ganked from http://stackoverflow.com/questions/3437786/how-to-get-web-page-size-browser-window-size-screen-size-in-a-cross-browser-wa */
+            	var w = window,
+				    d = document,
+				    e = d.documentElement,
+				    g = d.getElementsByTagName('body')[0],
+				    x = w.innerWidth || e.clientWidth || g.clientWidth,
+				    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
+				return {x: x, y: y};
+            }
 
 			function weave_retrieve_columns(column_parent, column_names)
             {
@@ -90,6 +106,7 @@
 			{
 				return d.key;
 			}
+
 			function weave_to_d3(raw_data, column_names)
 			{
 				raw_data_len = raw_data[0].length;
@@ -108,11 +125,12 @@
 				}
 				return new_dataset;
 			}
+
 			function data_updated()
 			{
 				column_names = ['x', 'y', 'size', 'color'];
-				
-				var raw_data = weave_retrieve_columns(toolInterface.path, column_names);
+				var parent = weave.path(this.getPath().slice(0,-1));
+				var raw_data = weave_retrieve_columns(parent, column_names);
 				
 				dataset = weave_to_d3(raw_data, column_names);
 
@@ -120,12 +138,17 @@
 
 				return;
 			}
+
 			function plot()
 			{
 
 				//Update scale domains.
-				xScale.domain([0, d3.max(dataset, function(d) { return d.x; })]);
-				yScale.domain([0, d3.max(dataset, function(d) { return d.y; })]);
+				if (xScaleFunc == d3.scale.log) min = 1; else min = 0;				
+				xScale.domain([min, d3.max(dataset, function(d) { return d.x; })]);
+
+				if (yScaleFunc == d3.scale.log) min = 1; else min = 0;
+				yScale.domain([min, d3.max(dataset, function(d) { return d.y; })]);
+
 				// Add any new records. 
 				svg.selectAll("circle")
 		   			.data(dataset, keyfunc)
@@ -182,27 +205,93 @@
                 /* Dynamically create the relevant properties from the template, and bind the specified callbacks */
                 for (var variableType in properties_template)
                 {
-                    var variables = {};
                     for (var variableName in properties_template[variableType])
                     {
                         var localPath = weave.path([baseName, variableName]).request([], variableType);
-                        variables[variableName] = localPath;
+                        weaveInterface.properties[variableName] = localPath;
 
-                        localPath.addCallback(properties_template[variableType][variableName]);
+                        localPath.addCallback(properties_template[variableType][variableName], true);
                     }
-                    weaveInterface.properties[variableType] = variables;
                 }
                 return weaveInterface;
             };
 
             var toolInterface;
+            var SCALE_TYPES = {
+            	"Linear": d3.scale.linear,
+            	"Logarithmic": d3.scale.log
+            };
+            var xScaleFunc = d3.scale.linear;
+            var yScaleFunc = d3.scale.linear;
+            function yscale_changed()
+            {
+            	console.log("y scale changed")
+            	var scale_type = this.getState();
+            	yScaleFunc = SCALE_TYPES[scale_type];
+            	if (yScaleFunc)
+            	{
+            		yScale = yScaleFunc()
+            	}
+            	else
+            	{
+            		console.log("yScaleType Doesn't match anything, setting back to Linear");
+            		toolInterface.properties.xscale_type.state("Linear");
+            	}
+            	yAxis.scale(yScale);
+            	update_layout();
+            }
+            function xscale_changed()
+            {
+            	console.log("x scale changed")
+            	var scale_type = this.getState();
+            	xScaleFunc = SCALE_TYPES[scale_type];
+            	if (xScaleFunc)
+            	{
+            		xScale = xScaleFunc()
+            	}
+            	else
+            	{
+            		console.log("xScaleType Doesn't match anything, setting back to Linear");
+            		toolInterface.properties.xscale_type.state("Linear");
+            	}
+            	xAxis.scale(xScale);
+            	update_layout();
+            }
+            function size_changed( ) 
+            {
 
-            function scale_changed(){};
-            function size_changed(){};
-            function probe_changed(){};
-            function selection_changed(){};
-            function subset_changed(){};
+            }
+            function probe_changed()
+            {
+            }
+            function selection_changed()
+            {
+            }
+            function subset_changed()
+            {
+            }
+            function layout_changed()
+            {
+            	var tmp_w = toolInterface.properties.requested_width.getState();
+				var tmp_h = toolInterface.properties.requested_height.getState();
 
+            	var valid = false;
+            	if (tmp_h)
+            	{
+            		h = tmp_h;
+            		valid = true;
+            	}
+            	if (tmp_w)
+            	{
+            		w = tmp_w;
+            		valid = true;
+            	}
+
+            	if (valid)
+            	{
+            		update_layout();
+            	}
+            }
 			function weave_setup() 
             {
             	if (window.weave === undefined) window.weave = opener.weave;
@@ -212,13 +301,17 @@
                                     'y': data_updated,
                                     'color': data_updated,
                                     'size': data_updated
-                    },
+                    				},
 
-                    LinkableString: {'scaleType': scale_changed },
+                    LinkableString: {'xscale_type': xscale_changed,
+                    				'yscale_type': yscale_changed
+                    				},
 
                     LinkableNumber: {'default_size':size_changed,
                     				 'max_size':size_changed,
-                    				 'min_size':size_changed
+                    				 'min_size':size_changed,
+                    				 'requested_width':layout_changed,
+                    				 'requested_height':layout_changed
                     				}
                 };
                 if (name == "") name = "WeaveD3Scatter";
@@ -227,12 +320,7 @@
                	toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
-
             };
-
-			//On click, update with new data			
-			d3.select("p").on("click", data_updated);
-			// Initial update. 
 			
 			weave_setup();
 
