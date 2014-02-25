@@ -1,95 +1,95 @@
 <!DOCTYPE html>
 <!-- saved from url=(0073)http://examples.oreilly.com/0636920026938/chapter_09/20_axes_dynamic.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-		<meta charset="utf-8">
-		<title>D3: Transitioning points to randomized values, plus rescaled axes!</title>
-		<script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
-		<style type="text/css">
-			
-			.axis path,
-			.axis line {
-				fill: none;
-				stroke: black;
-				shape-rendering: crispEdges;
-			}
-			
-			.axis text {
-				font-family: sans-serif;
-				font-size: 11px;
-			}
+        <meta charset="utf-8">
+        <title>D3: Transitioning points to randomized values, plus rescaled axes!</title>
+        <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+        <style type="text/css">
+            
+            .axis path,
+            .axis line {
+                fill: none;
+                stroke: black;
+                shape-rendering: crispEdges;
+            }
+            
+            .axis text {
+                font-family: sans-serif;
+                font-size: 11px;
+            }
 
-		</style>
-	<style type="text/css"></style></head>
-	<body>
-		<script type="text/javascript">
+        </style>
+    <style type="text/css"></style></head>
+    <body>
+        <script type="text/javascript">
 
-			//Width and height
-			var dataset = [];
-			var w = 500;
-			var h = 300;
-			var padding = 30;
+            //Width and height
+            var dataset = [];
+            var w = 500;
+            var h = 300;
+            var padding = 30;
 
-			//Create scale functions
-			var xScale = d3.scale.linear()
-								 .domain([0, 1])
-								 .range([padding, w - padding * 2]);
+            //Create scale functions
+            var xScale = d3.scale.linear()
+                                 .domain([0, 1])
+                                 .range([padding, w - padding * 2]);
 
-			var yScale = d3.scale.linear()
-								 .domain([0, 1])
-								 .range([h - padding, padding]);
+            var yScale = d3.scale.linear()
+                                 .domain([0, 1])
+                                 .range([h - padding, padding]);
 
-			//Define X axis
-			var xAxis = d3.svg.axis()
-							  .scale(xScale)
-							  .orient("bottom")
-							  .ticks(5);
+            //Define X axis
+            var xAxis = d3.svg.axis()
+                              .scale(xScale)
+                              .orient("bottom")
+                              .ticks(5);
 
-			//Define Y axis
-			var yAxis = d3.svg.axis()
-							  .scale(yScale)
-							  .orient("left")
-							  .ticks(5);
+            //Define Y axis
+            var yAxis = d3.svg.axis()
+                              .scale(yScale)
+                              .orient("left")
+                              .ticks(5);
 
-			//Create SVG element
-			var svg = d3.select("body").append("svg");
-			//Create element groups for the axes.
-			var yAxisElement = svg.append("g").attr("class", "y axis").call(yAxis);
+            //Create SVG element
+            var svg = d3.select("body").append("svg");
+            //Create element groups for the axes.
+            var yAxisElement = svg.append("g").attr("class", "y axis").call(yAxis);
 
-			var xAxisElement = svg.append("g").attr("class", "x axis").call(xAxis);
+            var xAxisElement = svg.append("g").attr("class", "x axis").call(xAxis);
 
-			update_layout();
+            update_layout();
 
-			function update_layout()
-			{
+            function update_layout()
+            {
 
-				//Modify SVG
-				svg.attr("width", w).attr("height", h);
-				//Create X axis
-				xAxisElement.attr("transform", "translate(0," + (h - padding) + ")");
-				
-				//Create Y axis
-				yAxisElement.attr("transform", "translate(" + padding + ",0)");
+                //Modify SVG
+                svg.attr("width", w).attr("height", h);
+                //Create X axis
+                xAxisElement.attr("transform", "translate(0," + (h - padding) + ")");
+                
+                //Create Y axis
+                yAxisElement.attr("transform", "translate(" + padding + ",0)");
 
-				// Update xScale and yScale according to changes in padding
-				xScale.range([padding, w - padding * 2]);
-				yScale.range([h - padding, padding]);
+                // Update xScale and yScale according to changes in padding
+                xScale.range([padding, w - padding * 2]);
+                yScale.range([h - padding, padding]);
 
-				plot();
-			}
+                plot();
+            }
 
             function get_windowsize()
             {
-            	/* Ganked from http://stackoverflow.com/questions/3437786/how-to-get-web-page-size-browser-window-size-screen-size-in-a-cross-browser-wa */
-            	var w = window,
-				    d = document,
-				    e = d.documentElement,
-				    g = d.getElementsByTagName('body')[0],
-				    x = w.innerWidth || e.clientWidth || g.clientWidth,
-				    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
-				return {x: x, y: y};
+                /* Ganked from http://stackoverflow.com/questions/3437786/how-to-get-web-page-size-browser-window-size-screen-size-in-a-cross-browser-wa */
+                var w = window,
+                    d = document,
+                    e = d.documentElement,
+                    g = d.getElementsByTagName('body')[0],
+                    x = w.innerWidth || e.clientWidth || g.clientWidth,
+                    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
+                return {x: x, y: y};
             }
 
-			function weave_retrieve_columns(column_parent, column_names)
+            function weave_retrieve_columns(column_parent, column_names)
             {
                 var data = column_parent.libs('weave.utils.ColumnUtils').naturalize()
                     .vars({names: column_names})
@@ -99,97 +99,97 @@
 
             function qkey_to_string(raw_qkey)
             {
-            	return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
+                return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
             }
 
             function keyfunc(d)
-			{
-				return d.key;
-			}
+            {
+                return d.key;
+            }
 
-			function weave_to_d3(raw_data, column_names)
-			{
-				raw_data_len = raw_data[0].length;
+            function weave_to_d3(raw_data, column_names)
+            {
+                raw_data_len = raw_data[0].length;
 
-				var new_dataset = [];
-				for (var raw_idx = 0; raw_idx < raw_data_len; raw_idx++)
-				{
-					var new_datum = {}
-					new_datum.key = qkey_to_string(raw_data[0][raw_idx]);
-					for (var col_idx = 0; col_idx < column_names.length; col_idx++)
-					{
-						/* TODO: Smart conversion to numeric. */
-						new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
-					}
-					new_dataset.push(new_datum);
-				}
-				return new_dataset;
-			}
+                var new_dataset = [];
+                for (var raw_idx = 0; raw_idx < raw_data_len; raw_idx++)
+                {
+                    var new_datum = {}
+                    new_datum.key = qkey_to_string(raw_data[0][raw_idx]);
+                    for (var col_idx = 0; col_idx < column_names.length; col_idx++)
+                    {
+                        /* TODO: Smart conversion to numeric. */
+                        new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
+                    }
+                    new_dataset.push(new_datum);
+                }
+                return new_dataset;
+            }
 
-			function data_updated()
-			{
-				column_names = ['x', 'y', 'size', 'color'];
-				var parent = weave.path(this.getPath().slice(0,-1));
-				var raw_data = weave_retrieve_columns(parent, column_names);
-				
-				dataset = weave_to_d3(raw_data, column_names);
+            function data_updated()
+            {
+                column_names = ['x', 'y', 'size', 'color'];
+                var parent = weave.path(this.getPath().slice(0,-1));
+                var raw_data = weave_retrieve_columns(parent, column_names);
+                
+                dataset = weave_to_d3(raw_data, column_names);
 
-				plot();
+                plot();
 
-				return;
-			}
+                return;
+            }
 
-			function plot()
-			{
+            function plot()
+            {
 
-				//Update scale domains.
-				if (xScaleFunc == d3.scale.log) min = 1; else min = 0;				
-				xScale.domain([min, d3.max(dataset, function(d) { return d.x; })]);
+                //Update scale domains.
+                if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
+                xScale.domain([min, d3.max(dataset, function(d) { return d.x; })]);
 
-				if (yScaleFunc == d3.scale.log) min = 1; else min = 0;
-				yScale.domain([min, d3.max(dataset, function(d) { return d.y; })]);
+                if (yScaleFunc == d3.scale.log) min = 1; else min = 0;
+                yScale.domain([min, d3.max(dataset, function(d) { return d.y; })]);
 
-				// Add any new records. 
-				svg.selectAll("circle")
-		   			.data(dataset, keyfunc)
-		   			.enter()
-		   			.append("circle")
-		   			.attr("cx", function(d) {
-		   				return xScale(d.x);
-		   			})
-		   			.attr("cy", function(d) {
-		  				return yScale(d.y);
-		   			})
-		   			.attr("r", 2);
+                // Add any new records. 
+                svg.selectAll("circle")
+                    .data(dataset, keyfunc)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", function(d) {
+                        return xScale(d.x);
+                    })
+                    .attr("cy", function(d) {
+                        return yScale(d.y);
+                    })
+                    .attr("r", 2);
 
-				//Update all circles
-				svg.selectAll("circle")
-				   .data(dataset, keyfunc)
-				   .transition()
-				   .duration(1000)		
-				   .attr("cx", function(d) {
-				   		return xScale(d.x);
-				   })
-				   .attr("cy", function(d) {
-				   		return yScale(d.y);
-				   });
+                //Update all circles
+                svg.selectAll("circle")
+                   .data(dataset, keyfunc)
+                   .transition()
+                   .duration(1000)      
+                   .attr("cx", function(d) {
+                        return xScale(d.x);
+                   })
+                   .attr("cy", function(d) {
+                        return yScale(d.y);
+                   });
 
-				//Update X axis
-				svg.select(".x.axis")
-			    	.transition()
-			    	.duration(1000)
-					.call(xAxis);
-				
-				//Update Y axis
-				svg.select(".y.axis")
-			    	.transition()
-			    	.duration(1000)
-					.call(yAxis);
-			};
+                //Update X axis
+                svg.select(".x.axis")
+                    .transition()
+                    .duration(1000)
+                    .call(xAxis);
+                
+                //Update Y axis
+                svg.select(".y.axis")
+                    .transition()
+                    .duration(1000)
+                    .call(yAxis);
+            };
 
             function weave_setup_properties(baseName, properties_template)
             {
-            	var weaveInterface = {};
+                var weaveInterface = {};
                 weaveInterface.properties = {};
 
                 /* Shared keysets used for cross-tool integration */
@@ -218,44 +218,44 @@
 
             var toolInterface;
             var SCALE_TYPES = {
-            	"Linear": d3.scale.linear,
-            	"Logarithmic": d3.scale.log
+                "Linear": d3.scale.linear,
+                "Logarithmic": d3.scale.log
             };
             var xScaleFunc = d3.scale.linear;
             var yScaleFunc = d3.scale.linear;
             function yscale_changed()
             {
-            	console.log("y scale changed")
-            	var scale_type = this.getState();
-            	yScaleFunc = SCALE_TYPES[scale_type];
-            	if (yScaleFunc)
-            	{
-            		yScale = yScaleFunc()
-            	}
-            	else
-            	{
-            		console.log("yScaleType Doesn't match anything, setting back to Linear");
-            		toolInterface.properties.xscale_type.state("Linear");
-            	}
-            	yAxis.scale(yScale);
-            	update_layout();
+                console.log("y scale changed")
+                var scale_type = this.getState();
+                yScaleFunc = SCALE_TYPES[scale_type];
+                if (yScaleFunc)
+                {
+                    yScale = yScaleFunc()
+                }
+                else
+                {
+                    console.log("yScaleType Doesn't match anything, setting back to Linear");
+                    toolInterface.properties.xscale_type.state("Linear");
+                }
+                yAxis.scale(yScale);
+                update_layout();
             }
             function xscale_changed()
             {
-            	console.log("x scale changed")
-            	var scale_type = this.getState();
-            	xScaleFunc = SCALE_TYPES[scale_type];
-            	if (xScaleFunc)
-            	{
-            		xScale = xScaleFunc()
-            	}
-            	else
-            	{
-            		console.log("xScaleType Doesn't match anything, setting back to Linear");
-            		toolInterface.properties.xscale_type.state("Linear");
-            	}
-            	xAxis.scale(xScale);
-            	update_layout();
+                console.log("x scale changed")
+                var scale_type = this.getState();
+                xScaleFunc = SCALE_TYPES[scale_type];
+                if (xScaleFunc)
+                {
+                    xScale = xScaleFunc()
+                }
+                else
+                {
+                    console.log("xScaleType Doesn't match anything, setting back to Linear");
+                    toolInterface.properties.xscale_type.state("Linear");
+                }
+                xAxis.scale(xScale);
+                update_layout();
             }
             function size_changed( ) 
             {
@@ -272,57 +272,57 @@
             }
             function layout_changed()
             {
-            	var tmp_w = toolInterface.properties.requested_width.getState();
-				var tmp_h = toolInterface.properties.requested_height.getState();
+                var tmp_w = toolInterface.properties.requested_width.getState();
+                var tmp_h = toolInterface.properties.requested_height.getState();
 
-            	var valid = false;
-            	if (tmp_h)
-            	{
-            		h = tmp_h;
-            		valid = true;
-            	}
-            	if (tmp_w)
-            	{
-            		w = tmp_w;
-            		valid = true;
-            	}
+                var valid = false;
+                if (tmp_h)
+                {
+                    h = tmp_h;
+                    valid = true;
+                }
+                if (tmp_w)
+                {
+                    w = tmp_w;
+                    valid = true;
+                }
 
-            	if (valid)
-            	{
-            		update_layout();
-            	}
+                if (valid)
+                {
+                    update_layout();
+                }
             }
-			function weave_setup() 
+            function weave_setup() 
             {
-            	if (window.weave === undefined) window.weave = opener.weave;
+                if (window.weave === undefined) window.weave = opener.weave;
 
                 var properties_template = {
                     DynamicColumn: {'x': data_updated,
                                     'y': data_updated,
                                     'color': data_updated,
                                     'size': data_updated
-                    				},
+                                    },
 
                     LinkableString: {'xscale_type': xscale_changed,
-                    				'yscale_type': yscale_changed
-                    				},
+                                    'yscale_type': yscale_changed
+                                    },
 
                     LinkableNumber: {'default_size':size_changed,
-                    				 'max_size':size_changed,
-                    				 'min_size':size_changed,
-                    				 'requested_width':layout_changed,
-                    				 'requested_height':layout_changed
-                    				}
+                                     'max_size':size_changed,
+                                     'min_size':size_changed,
+                                     'requested_width':layout_changed,
+                                     'requested_height':layout_changed
+                                    }
                 };
                 if (name == "") name = "WeaveD3Scatter";
-               	
-               	toolInterface = weave_setup_properties(name, properties_template);
-               	toolInterface.probe_keyset.addCallback(probe_changed);
+                
+                toolInterface = weave_setup_properties(name, properties_template);
+                toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
             };
-			
-			weave_setup();
+            
+            weave_setup();
 
-            </script>	
+            </script>   
 </body></html>
