@@ -72,22 +72,52 @@
 				.call(yAxis);
 
                         
-			function keyfunc(d)
+
+			function weave_retrieve_columns(column_parent, column_names)
+            {
+                var data = column_parent.libs('weave.utils.ColumnUtils').naturalize()
+                    .vars({names: column_names})
+                    .getValue("ColumnUtils.joinColumns(names.map(function(name){return getObject(name); }), null, true)");
+                return data;
+            }
+
+            function qkey_to_string(raw_qkey)
+            {
+            	return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
+            }
+
+            function keyfunc(d)
 			{
 				return d.key;
 			}
+			function weave_to_d3(raw_data, column_names)
+			{
+				raw_data_len = raw_data[0].length;
+
+				var new_dataset = [];
+				for (var raw_idx = 0; raw_idx < raw_data_len; raw_idx++)
+				{
+					var new_datum = {}
+					new_datum.key = qkey_to_string(raw_data[0][raw_idx]);
+					for (var col_idx = 0; col_idx < column_names.length; col_idx++)
+					{
+						/* TODO: Smart conversion to numeric. */
+						new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
+					}
+					new_dataset.push(new_datum);
+				}
+				return new_dataset;
+			}
 			function data_updated()
 			{
-				//New values for dataset
-				var numValues = 100;						 		//Count original length of dataset
-				var maxRange = Math.random() * 1000;						//Max range of new values
-				dataset = [];  						 				 		//Initialize empty array
-				for (var i = 0; i < numValues; i++) {				 		//Loop numValues times
-					var newNumber1 = Math.floor(Math.random() * maxRange);	//New random integer
-					var newNumber2 = Math.floor(Math.random() * maxRange);	//New random integer
-					dataset.push({key: i, x: newNumber1, y: newNumber2});					//Add new number to array
-				}
+				column_names = ['x', 'y', 'size', 'color'];
+				
+				var raw_data = weave_retrieve_columns(toolInterface.path, column_names);
+				
+				dataset = weave_to_d3(raw_data, column_names);
+
 				plot();
+
 				return;
 			}
 			function plot()
