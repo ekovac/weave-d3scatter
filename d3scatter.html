@@ -5,7 +5,11 @@
         <title>D3: Transitioning points to randomized values, plus rescaled axes!</title>
         <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
         <style type="text/css">
-            
+            .probe {
+                fill: none;
+                stroke: black;
+                shape-rendering:crispEdges;
+            }
             .axis path,
             .axis line {
                 fill: none;
@@ -37,6 +41,9 @@
             var yScale = d3.scale.linear()
                                  .domain([0, 1])
                                  .range([h - padding, padding]);
+            var rScale = d3.scale.linear()
+                                 .domain([0, 1])
+                                 .range([2, 10]);
 
             //Define X axis
             var xAxis = d3.svg.axis()
@@ -49,6 +56,7 @@
                               .scale(yScale)
                               .orient("left")
                               .ticks(5);
+            var localProbes = {};
 
             //Create SVG element
             var svg = d3.select("body").append("svg");
@@ -101,6 +109,11 @@
             {
                 return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
             }
+            function string_to_qkey(jsonstring)
+            {
+                var raw_arr = JSON.parse(jsonstring);
+                return {keyType: raw_arr[0], localName: raw_arr[1]};
+            }
 
             function keyfunc(d)
             {
@@ -149,6 +162,9 @@
                 if (yScaleFunc == d3.scale.log) min = 1; else min = 0;
                 yScale.domain([min, d3.max(dataset, function(d) { return d.y; })]);
 
+
+                rScale.domain([min, d3.max(dataset, function(d) { return d.size; })]);
+
                 // Add any new records. 
                 svg.selectAll("circle")
                     .data(dataset, keyfunc)
@@ -160,7 +176,14 @@
                     .attr("cy", function(d) {
                         return yScale(d.y);
                     })
-                    .attr("r", 2);
+                    .attr("r", function(d) { 
+                        if (d.size != NaN && d.size != null) 
+                            return rScale(d.size);
+                        else
+                            return rScale(0);
+                    })
+                    .on("mouseover", probed)
+                    .on("mouseout", unprobed);
 
                 //Update all circles
                 svg.selectAll("circle")
@@ -172,7 +195,13 @@
                    })
                    .attr("cy", function(d) {
                         return yScale(d.y);
-                   });
+                   })
+                   .attr("r", function(d) { 
+                        if (d.size != NaN && d.size != null) 
+                            return rScale(d.size);
+                        else
+                            return rScale(0);
+                    });
 
                 //Update X axis
                 svg.select(".x.axis")
@@ -189,18 +218,18 @@
 
             function weave_setup_properties(baseName, properties_template)
             {
-                var weaveInterface = {};
-                weaveInterface.properties = {};
+                toolInterface = {};
+                toolInterface.properties = {};
 
                 /* Shared keysets used for cross-tool integration */
-                weaveInterface.probe_keyset = weave.path("defaultProbeKeySet");
-                weaveInterface.select_keyset = weave.path("defaultSelectionKeySet");
-                weaveInterface.subset_keyset = weave.path("defaultSubsetKeyFilter");
+                toolInterface.probe_keyset = weave.path("defaultProbeKeySet");
+                toolInterface.select_keyset = weave.path("defaultSelectionKeySet");
+                toolInterface.subset_keyset = weave.path("defaultSubsetKeyFilter");
 
                 
                 /* TODO: Test if the tool already exists and set a variable indicating we're restoring from session state */
                 /* Request the base tool object */
-                weaveInterface.path = weave.path([baseName]).request([], "LinkableHashMap");
+                toolInterface.path = weave.path([baseName]).request([], "LinkableHashMap");
 
                 /* Dynamically create the relevant properties from the template, and bind the specified callbacks */
                 for (var variableType in properties_template)
@@ -208,12 +237,11 @@
                     for (var variableName in properties_template[variableType])
                     {
                         var localPath = weave.path([baseName, variableName]).request([], variableType);
-                        weaveInterface.properties[variableName] = localPath;
+                        toolInterface.properties[variableName] = localPath;
 
                         localPath.addCallback(properties_template[variableType][variableName], true);
                     }
                 }
-                return weaveInterface;
             };
 
             var toolInterface;
@@ -259,11 +287,55 @@
             }
             function size_changed( ) 
             {
-
+                var tmp_size = toolInterface.properties.base_size.getState();
+                var tmp_max_size = toolInterface.properties.max_size.getState();
+                console.log("size_changed called");
+                if (isNaN(tmp_size))
+                {
+                    console.log("base_size invalid, setting to default");
+                    toolInterface.properties.base_size.state(5);
+                    tmp_size = 5;
+                }
+                if (isNaN(tmp_max_size))
+                {
+                    console.log("max_size invalid, setting to default");
+                    toolInterface.properties.max_size.state(tmp_size);
+                    tmp_max_size = 5;
+                }
+                rScale.range([tmp_size, tmp_max_size]);
+                plot();
             }
+
             function probe_changed()
             {
+
             }
+
+            function update_probes()
+            {
+                nativeKeys = new opener.Array;
+                for (key in localProbes)
+                {
+                    nativeKeys.push(string_to_qkey(key));
+                }
+                weave.evaluateExpression(toolInterface.probe_keyset.getPath(), 
+                                         'replaceKeys(keys)',
+                                         {keys: nativeKeys});
+            }
+            function probed(d)
+            {
+                //console.log( "Probed: " + JSON.stringify(d.key) );
+                localProbes[d.key] = true;
+                update_probes();
+            }
+
+            function unprobed(d)
+            {
+                //console.log( "Unprobed: " + JSON.stringify(d.key) );
+                delete localProbes[d.key];
+                update_probes();
+            }
+
             function selection_changed()
             {
             }
@@ -307,16 +379,15 @@
                                     'yscale_type': yscale_changed
                                     },
 
-                    LinkableNumber: {'default_size':size_changed,
+                    LinkableNumber: {'base_size':size_changed,
                                      'max_size':size_changed,
-                                     'min_size':size_changed,
                                      'requested_width':layout_changed,
                                      'requested_height':layout_changed
                                     }
                 };
                 if (name == "") name = "WeaveD3Scatter";
                 
-                toolInterface = weave_setup_properties(name, properties_template);
+                weave_setup_properties(name, properties_template);
                 toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
