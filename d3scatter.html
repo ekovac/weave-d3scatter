@@ -57,6 +57,8 @@
                               .orient("left")
                               .ticks(5);
             var localProbes = {};
+            var localSelection = {};
+            var localSubset = {};
 
             //Create SVG element
             var svg = d3.select("body").append("svg");
@@ -104,7 +106,15 @@
                     .getValue("ColumnUtils.joinColumns(names.map(function(name){return getObject(name); }), null, true)");
                 return data;
             }
-
+            function weave_in_keyset(key, keyset_path)
+            {
+                var qkey = string_to_qkey(key);
+                var result = keyset_path.naturalize()
+                            .vars({localName: qkey.localName, keyType: qkey.keyType})
+                            .libs('weave.api.WeaveAPI')
+                            .getValue("containsKey(WeaveAPI.QKeyManager.getQKey(keyType, localName))");
+                return result;
+            }
             function qkey_to_string(raw_qkey)
             {
                 return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
@@ -134,7 +144,10 @@
                         /* TODO: Smart conversion to numeric. */
                         new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
                     }
-                    new_dataset.push(new_datum);
+                    if (weave_in_keyset(new_datum.key, toolInterface.subset_keyset))
+                    {
+                        new_dataset.push(new_datum);
+                    }
                 }
                 return new_dataset;
             }
@@ -151,23 +164,36 @@
 
                 return;
             }
+            function in_set(d,s)
+            {
+                if (s[d.key] === undefined) return null;
+                return d;
+            }
 
+            function in_probeset(d) {return in_set(d, localProbes);}
+            function in_selectionset(d) {return in_set(d, localSelection);}
+            function in_subset(d,i,a) {
+                if (Object.keys(localSubset).length == 0) return d; // Always return the object if we have an empty subset. 
+                return in_set(d, localSubset);
+            }
+            var debug_tmp;
             function plot()
             {
+                var working_dataset = dataset;
 
                 //Update scale domains.
                 if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
-                xScale.domain([min, d3.max(dataset, function(d) { return d.x; })]);
+                xScale.domain([min, d3.max(working_dataset, function(d) { return d.x; })]);
 
                 if (yScaleFunc == d3.scale.log) min = 1; else min = 0;
-                yScale.domain([min, d3.max(dataset, function(d) { return d.y; })]);
+                yScale.domain([min, d3.max(working_dataset, function(d) { return d.y; })]);
 
 
-                rScale.domain([min, d3.max(dataset, function(d) { return d.size; })]);
+                rScale.domain([min, d3.max(working_dataset, function(d) { return d.size; })]);
 
                 // Add any new records. 
                 svg.selectAll("circle")
-                    .data(dataset, keyfunc)
+                    .data(working_dataset, keyfunc)
                     .enter()
                     .append("circle")
                     .attr("cx", function(d) {
@@ -187,7 +213,7 @@
 
                 //Update all circles
                 svg.selectAll("circle")
-                   .data(dataset, keyfunc)
+                   .data(working_dataset, keyfunc)
                    .transition()
                    .duration(1000)      
                    .attr("cx", function(d) {
@@ -202,6 +228,14 @@
                         else
                             return rScale(0);
                     });
+                // Remove missing records.
+                svg.selectAll("circle")
+                    .data(working_dataset, keyfunc)
+                    .exit()
+                    .transition()
+                    .duration(1000)
+                    .attr("alpha", 0)
+                    .remove();
 
                 //Update X axis
                 svg.select(".x.axis")
@@ -216,7 +250,7 @@
                     .call(yAxis);
             };
 
-            function weave_setup_properties(baseName, properties_template)
+            function weave_setup_properties(root, properties_template)
             {
                 toolInterface = {};
                 toolInterface.properties = {};
@@ -229,17 +263,26 @@
                 
                 /* TODO: Test if the tool already exists and set a variable indicating we're restoring from session state */
                 /* Request the base tool object */
-                toolInterface.path = weave.path([baseName]).request([], "LinkableHashMap");
+                toolInterface.path = weave.path(root).request([], "ExternalTool");
 
                 /* Dynamically create the relevant properties from the template, and bind the specified callbacks */
                 for (var variableType in properties_template)
                 {
                     for (var variableName in properties_template[variableType])
                     {
-                        var localPath = weave.path([baseName, variableName]).request([], variableType);
-                        toolInterface.properties[variableName] = localPath;
+                        var localPathArray = root.concat([variableName]);
 
-                        localPath.addCallback(properties_template[variableType][variableName], true);
+                        var localPath = weave.path(localPathArray).request([], variableType);
+
+                        toolInterface.properties[variableName] = localPath;
+                    }
+                }
+                /* Loop over it again to add the callbacks; we can't do this in the same loop that creates it or else some things won't be ready for the first run of the callbacks. */
+                for (var variableType in properties_template)
+                {
+                    for (var variableName in properties_template[variableType])
+                    {
+                        toolInterface.properties[variableName].addCallback(properties_template[variableType][variableName], true);
                     }
                 }
             };
@@ -341,6 +384,7 @@
             }
             function subset_changed()
             {
+                data_updated();
             }
             function layout_changed()
             {
@@ -366,8 +410,6 @@
             }
             function weave_setup() 
             {
-                if (window.weave === undefined) window.weave = opener.weave;
-
                 var properties_template = {
                     DynamicColumn: {'x': data_updated,
                                     'y': data_updated,
@@ -385,14 +427,13 @@
                                      'requested_height':layout_changed
                                     }
                 };
-                if (name == "") name = "WeaveD3Scatter";
                 
-                weave_setup_properties(name, properties_template);
+                weave_setup_properties(toolPath, properties_template);
                 toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
             };
-            
+
             weave_setup();
 
             </script>   
