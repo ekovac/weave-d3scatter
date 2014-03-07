@@ -155,7 +155,7 @@
             function data_updated()
             {
                 column_names = ['x', 'y', 'size', 'color'];
-                var parent = weave.path(this.getPath().slice(0,-1));
+                var parent = weave.path(toolPath);
                 var raw_data = weave_retrieve_columns(parent, column_names);
                 
                 dataset = weave_to_d3(raw_data, column_names);
@@ -202,6 +202,7 @@
                     .attr("cy", function(d) {
                         return yScale(d.y);
                     })
+                    .attr("opacity", 1)
                     .attr("r", function(d) { 
                         if (d.size != NaN && d.size != null) 
                             return rScale(d.size);
@@ -234,7 +235,13 @@
                     .exit()
                     .transition()
                     .duration(1000)
-                    .attr("alpha", 0)
+                    .attr("opacity", 0)
+                    .attr("cx", function(d) {
+                        return xScale(d.x);
+                    })
+                   .attr("cy", function(d) {
+                        return yScale(d.y);
+                    })
                     .remove();
 
                 //Update X axis
