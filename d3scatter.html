@@ -170,8 +170,8 @@
                 return d;
             }
 
-            function in_probeset(d) {return in_set(d, localProbes);}
-            function in_selectionset(d) {return in_set(d, localSelection);}
+            function in_probeset(d,i,a) {return in_set(d, localProbes);}
+            function in_selectionset(d,i,a) {return in_set(d, localSelection);}
             function in_subset(d,i,a) {
                 if (Object.keys(localSubset).length == 0) return d; // Always return the object if we have an empty subset. 
                 return in_set(d, localSubset);
@@ -180,6 +180,8 @@
             function plot()
             {
                 var working_dataset = dataset;
+                var probe_dataset = dataset.filter(in_probeset);
+                console.log(probe_dataset);
 
                 //Update scale domains.
                 if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
@@ -216,7 +218,7 @@
                 svg.selectAll("circle")
                    .data(working_dataset, keyfunc)
                    .transition()
-                   .duration(1000)      
+                   .duration(250)      
                    .attr("cx", function(d) {
                         return xScale(d.x);
                    })
@@ -234,7 +236,7 @@
                     .data(working_dataset, keyfunc)
                     .exit()
                     .transition()
-                    .duration(1000)
+                    .duration(250)
                     .attr("opacity", 0)
                     .attr("cx", function(d) {
                         return xScale(d.x);
@@ -243,17 +245,46 @@
                         return yScale(d.y);
                     })
                     .remove();
+                // Enter probe records. 
+                svg.selectAll("circle.probe")
+                    .data(probe_dataset, keyfunc)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "probe")
+                    .attr("cx", function(d) {
+                        return xScale(d.x);
+                    })
+                    .attr("cy", function(d) {
+                        return yScale(d.y);
+                    })
+                    .attr("opacity", 0.5)
+                    .attr("fill", "none")
+                    .attr("r", function(d) { 
+                        if (d.size != NaN && d.size != null) 
+                            return rScale(d.size)*1.2;
+                        else
+                            return rScale(0)*1.2;
+                    })
+
+                // Remove probe
+                svg.selectAll("circle.probe")
+                    .data(probe_dataset, keyfunc)
+                    .exit()
+                    .transition()
+                    .duration(250)
+                    .attr("opacity", 0)
+                    .remove();
 
                 //Update X axis
                 svg.select(".x.axis")
                     .transition()
-                    .duration(1000)
+                    .duration(250)
                     .call(xAxis);
                 
                 //Update Y axis
                 svg.select(".y.axis")
                     .transition()
-                    .duration(1000)
+                    .duration(250)
                     .call(yAxis);
             };
 
@@ -358,7 +389,15 @@
 
             function probe_changed()
             {
-
+                var remoteProbes = toolInterface.probe_keyset.exec('keys', 'key_output').getValue('key_output');
+                localProbes = {};
+                console.log("Probes changed.");
+                for (key in remoteProbes)
+                {
+                    console.log(remoteProbes[key]);
+                    localProbes[qkey_to_string(remoteProbes[key])] = true;
+                }
+                plot();
             }
 
             function update_probes()
@@ -368,9 +407,7 @@
                 {
                     nativeKeys.push(string_to_qkey(key));
                 }
-                weave.evaluateExpression(toolInterface.probe_keyset.getPath(), 
-                                         'replaceKeys(keys)',
-                                         {keys: nativeKeys});
+                toolInterface.probe_keyset.vars({keys: nativeKeys}).exec('replaceKeys(keys)');
             }
             function probed(d)
             {
