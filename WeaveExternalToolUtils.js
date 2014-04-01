@@ -1,4 +1,18 @@
-function weave_setup_properties(toolInterface, properties_template)
+var WeaveExternalToolUtils = {};
+
+
+WeaveExternalToolUtils.qkey_to_string = function (raw_qkey)
+{
+    return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
+};
+
+WeaveExternalToolUtils.string_to_qkey = function (jsonstring)
+{
+    var raw_arr = JSON.parse(jsonstring);
+    return {keyType: raw_arr[0], localName: raw_arr[1]};
+};
+
+WeaveExternalToolUtils.setup_properties = function (toolInterface, properties_template)
 {
     var path = JSON.parse(window.name);
     var weave_id = path.shift();    
@@ -38,7 +52,8 @@ function weave_setup_properties(toolInterface, properties_template)
         }
     }
 };
-function weave_retrieve_columns(column_parent, column_names)
+
+WeaveExternalToolUtils.retrieve_columns = function (column_parent, column_names)
 {
     var data = column_parent.libs('weave.utils.ColumnUtils').naturalize()
         .vars({names: column_names})
@@ -46,9 +61,9 @@ function weave_retrieve_columns(column_parent, column_names)
     return data;
 };
 
-function weave_in_keyset(key, keyset_path)
+WeaveExternalToolUtils.qkey_in_keyset = function (key, keyset_path)
 {
-    var qkey = string_to_qkey(key);
+    var qkey = WeaveExternalToolUtils.string_to_qkey(key);
     var result = keyset_path.naturalize()
                 .vars({localName: qkey.localName, keyType: qkey.keyType})
                 .libs('weave.api.WeaveAPI')

@@ -101,19 +101,11 @@
             }
 
 
-            function qkey_to_string(raw_qkey)
-            {
-                return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
-            }
-            function string_to_qkey(jsonstring)
-            {
-                var raw_arr = JSON.parse(jsonstring);
-                return {keyType: raw_arr[0], localName: raw_arr[1]};
-            }
 
-            function keyfunc(d)
+
+            function keyfunc(data)
             {
-                return d.key;
+                return data.key;
             }
 
             function weave_to_d3(raw_data, column_names)
@@ -124,13 +116,13 @@
                 for (var raw_idx = 0; raw_idx < raw_data_len; raw_idx++)
                 {
                     var new_datum = {}
-                    new_datum.key = qkey_to_string(raw_data[0][raw_idx]);
+                    new_datum.key = WeaveExternalToolUtils.qkey_to_string(raw_data[0][raw_idx]);
                     for (var col_idx = 0; col_idx < column_names.length; col_idx++)
                     {
                         /* TODO: Smart conversion to numeric. */
                         new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
                     }
-                    if (weave_in_keyset(new_datum.key, toolInterface.subset_keyset))
+                    if (WeaveExternalToolUtils.qkey_in_keyset(new_datum.key, toolInterface.subset_keyset))
                     {
                         new_dataset.push(new_datum);
                     }
@@ -141,7 +133,7 @@
             function data_updated()
             {
                 column_names = ['x', 'y', 'size', 'color'];
-                var raw_data = weave_retrieve_columns(toolInterface.path, column_names);
+                var raw_data = WeaveExternalToolUtils.retrieve_columns(toolInterface.path, column_names);
                 
                 dataset = weave_to_d3(raw_data, column_names);
 
@@ -350,7 +342,7 @@
 
                 for (key in remoteProbes)
                 {
-                    localProbes[qkey_to_string(remoteProbes[key])] = true;
+                    localProbes[WeaveExternalToolUtils.qkey_to_string(remoteProbes[key])] = true;
                 }
 
                 plot();
@@ -361,7 +353,7 @@
                 nativeKeys = new opener.Array;
                 for (key in localProbes)
                 {
-                    nativeKeys.push(string_to_qkey(key));
+                    nativeKeys.push(WeaveExternalToolUtils.string_to_qkey(key));
                 }
                 toolInterface.probe_keyset.vars({keys: nativeKeys}).exec('replaceKeys(keys)');
             }
@@ -430,7 +422,7 @@
                 };
                 
                 toolInterface = {};
-                weave_setup_properties(toolInterface, properties_template);
+                WeaveExternalToolUtils.setup_properties(toolInterface, properties_template);
                 toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
