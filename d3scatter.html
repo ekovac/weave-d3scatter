@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <title>D3: Transitioning points to randomized values, plus rescaled axes!</title>
         <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+        <script type="text/javascript" src="externaltoolcommon.js"></script>
         <style type="text/css">
             .probe {
                 fill: none;
@@ -99,22 +100,7 @@
                 return {x: x, y: y};
             }
 
-            function weave_retrieve_columns(column_parent, column_names)
-            {
-                var data = column_parent.libs('weave.utils.ColumnUtils').naturalize()
-                    .vars({names: column_names})
-                    .getValue("ColumnUtils.joinColumns(names.map(function(name){return getObject(name); }), null, true)");
-                return data;
-            }
-            function weave_in_keyset(key, keyset_path)
-            {
-                var qkey = string_to_qkey(key);
-                var result = keyset_path.naturalize()
-                            .vars({localName: qkey.localName, keyType: qkey.keyType})
-                            .libs('weave.api.WeaveAPI')
-                            .getValue("containsKey(WeaveAPI.QKeyManager.getQKey(keyType, localName))");
-                return result;
-            }
+
             function qkey_to_string(raw_qkey)
             {
                 return JSON.stringify([raw_qkey.keyType, raw_qkey.localName]);
@@ -155,8 +141,7 @@
             function data_updated()
             {
                 column_names = ['x', 'y', 'size', 'color'];
-                var parent = weave.path(toolPath);
-                var raw_data = weave_retrieve_columns(parent, column_names);
+                var raw_data = weave_retrieve_columns(toolInterface.path, column_names);
                 
                 dataset = weave_to_d3(raw_data, column_names);
 
@@ -166,10 +151,19 @@
             }
             function in_set(d,s)
             {
-                if (s[d.key] === undefined) return null;
+                if (d == undefined) return null;
+                if (s[d.key] == undefined) return null;
                 return d;
             }
-
+            function set_negate(a,b) {
+                var result = {};
+                for (var k in a)
+                {
+                    if (b[k] == undefined)
+                        result[k] = a[k];
+                }
+                return result;
+            }
             function in_probeset(d,i,a) {return in_set(d, localProbes);}
             function in_selectionset(d,i,a) {return in_set(d, localSelection);}
             function in_subset(d,i,a) {
@@ -181,7 +175,6 @@
             {
                 var working_dataset = dataset;
                 var probe_dataset = dataset.filter(in_probeset);
-                console.log(probe_dataset);
 
                 //Update scale domains.
                 if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
@@ -233,17 +226,11 @@
                     });
                 // Remove missing records.
                 svg.selectAll("circle")
-                    .data(working_dataset, keyfunc)
+                    .data(dataset, keyfunc)
                     .exit()
                     .transition()
                     .duration(250)
                     .attr("opacity", 0)
-                    .attr("cx", function(d) {
-                        return xScale(d.x);
-                    })
-                   .attr("cy", function(d) {
-                        return yScale(d.y);
-                    })
                     .remove();
                 // Enter probe records. 
                 svg.selectAll("circle.probe")
@@ -288,42 +275,7 @@
                     .call(yAxis);
             };
 
-            function weave_setup_properties(root, properties_template)
-            {
-                toolInterface = {};
-                toolInterface.properties = {};
 
-                /* Shared keysets used for cross-tool integration */
-                toolInterface.probe_keyset = weave.path("defaultProbeKeySet");
-                toolInterface.select_keyset = weave.path("defaultSelectionKeySet");
-                toolInterface.subset_keyset = weave.path("defaultSubsetKeyFilter");
-
-                
-                /* TODO: Test if the tool already exists and set a variable indicating we're restoring from session state */
-                /* Request the base tool object */
-                toolInterface.path = weave.path(root).request([], "ExternalTool");
-
-                /* Dynamically create the relevant properties from the template, and bind the specified callbacks */
-                for (var variableType in properties_template)
-                {
-                    for (var variableName in properties_template[variableType])
-                    {
-                        var localPathArray = root.concat([variableName]);
-
-                        var localPath = weave.path(localPathArray).request([], variableType);
-
-                        toolInterface.properties[variableName] = localPath;
-                    }
-                }
-                /* Loop over it again to add the callbacks; we can't do this in the same loop that creates it or else some things won't be ready for the first run of the callbacks. */
-                for (var variableType in properties_template)
-                {
-                    for (var variableName in properties_template[variableType])
-                    {
-                        toolInterface.properties[variableName].addCallback(properties_template[variableType][variableName], true);
-                    }
-                }
-            };
 
             var toolInterface;
             var SCALE_TYPES = {
@@ -386,17 +338,21 @@
                 rScale.range([tmp_size, tmp_max_size]);
                 plot();
             }
+            function selection_changed()
+            {
 
+            }
             function probe_changed()
             {
-                var remoteProbes = toolInterface.probe_keyset.exec('keys', 'key_output').getValue('key_output');
+                var remoteProbes = toolInterface.probe_keyset.getValue("this.keys");
+                var remoteProbeState = toolInterface.probe_keyset.getState();
                 localProbes = {};
-                console.log("Probes changed.");
+
                 for (key in remoteProbes)
                 {
-                    console.log(remoteProbes[key]);
                     localProbes[qkey_to_string(remoteProbes[key])] = true;
                 }
+
                 plot();
             }
 
@@ -412,6 +368,7 @@
             function probed(d)
             {
                 //console.log( "Probed: " + JSON.stringify(d.key) );
+                localProbes = {};
                 localProbes[d.key] = true;
                 update_probes();
             }
@@ -419,7 +376,7 @@
             function unprobed(d)
             {
                 //console.log( "Unprobed: " + JSON.stringify(d.key) );
-                delete localProbes[d.key];
+                localProbes = {};
                 update_probes();
             }
 
@@ -472,13 +429,13 @@
                                     }
                 };
                 
-                weave_setup_properties(toolPath, properties_template);
+                toolInterface = {};
+                weave_setup_properties(toolInterface, properties_template);
                 toolInterface.probe_keyset.addCallback(probe_changed);
                 toolInterface.select_keyset.addCallback(selection_changed);
                 toolInterface.subset_keyset.addCallback(subset_changed);
             };
 
             weave_setup();
-
             </script>   
 </body></html>
