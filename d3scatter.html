@@ -4,13 +4,13 @@
         <meta charset="utf-8">
         <title>D3: Transitioning points to randomized values, plus rescaled axes!</title>
         <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
-        <script type="text/javascript" src="WeaveExternalToolUtils.js"></script>
+        <script type="text/javascript" src="WeaveExternalHelper.js"></script>
         <style type="text/css">
-            .probe {
+            .point circle {
                 fill: none;
                 stroke: black;
-                shape-rendering:crispEdges;
             }
+            
             .axis path,
             .axis line {
                 fill: none;
@@ -25,7 +25,7 @@
 
         </style>
     <style type="text/css"></style></head>
-    <body>
+    <body onload="weave_setup();">
         <script type="text/javascript">
 
             //Width and height
@@ -33,6 +33,7 @@
             var w = 500;
             var h = 300;
             var padding = 30;
+            var toolPath;
 
             //Create scale functions
             var xScale = d3.scale.linear()
@@ -46,6 +47,9 @@
                                  .domain([0, 1])
                                  .range([2, 10]);
 
+            var quadtree = null;
+
+            //var brush = d3.svg.brush().x(xScale).y(yScale).on("brush", brushed);
             //Define X axis
             var xAxis = d3.svg.axis()
                               .scale(xScale)
@@ -57,6 +61,7 @@
                               .scale(yScale)
                               .orient("left")
                               .ticks(5);
+            var localKeys = [];
             var localProbes = {};
             var localSelection = {};
             var localSubset = {};
@@ -103,37 +108,34 @@
 
 
 
-            function keyfunc(data)
+            function keyfunc(datum)
             {
-                return data.key;
+                return datum.key;
             }
 
             function weave_to_d3(raw_data, column_names)
             {
                 raw_data_len = raw_data[0].length;
 
-                var new_dataset = [];
+                var new_dataset = new Array(raw_data_len);
                 for (var raw_idx = 0; raw_idx < raw_data_len; raw_idx++)
                 {
-                    var new_datum = {}
-                    new_datum.key = WeaveExternalToolUtils.qkey_to_string(raw_data[0][raw_idx]);
+                    var new_datum = {};
+                    new_datum.key = raw_data[0][raw_idx];
                     for (var col_idx = 0; col_idx < column_names.length; col_idx++)
                     {
-                        /* TODO: Smart conversion to numeric. */
-                        new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
+                       new_datum[column_names[col_idx]] = raw_data[col_idx+1][raw_idx];
                     }
-                    if (WeaveExternalToolUtils.qkey_in_keyset(new_datum.key, toolInterface.subset_keyset))
-                    {
-                        new_dataset.push(new_datum);
-                    }
+                    new_dataset[raw_idx] = new_datum;
                 }
                 return new_dataset;
             }
 
             function data_updated()
             {
-                column_names = ['x', 'y', 'size', 'color'];
-                var raw_data = WeaveExternalToolUtils.retrieve_columns(toolInterface.path, column_names);
+                var column_names = ['x', 'y', 'size', 'color'];
+                var raw_data = toolPath.retrieveColumns(column_names);
+                localKeys = raw_data[0];
                 
                 dataset = weave_to_d3(raw_data, column_names);
 
@@ -144,8 +146,8 @@
             function in_set(d,s)
             {
                 if (d == undefined) return null;
-                if (s[d.key] == undefined) return null;
-                return d;
+                if (s[d.key] == undefined) return false;
+                return true;
             }
             function set_negate(a,b) {
                 var result = {};
@@ -156,17 +158,29 @@
                 }
                 return result;
             }
+            function set_from_array(a)
+            {
+                var set = {};
+                for (var k in a)
+                {
+                    set[a[k]] = true;
+                }
+                return set;
+            }
+            function quadtree_search()
+            {
+
+            }
             function in_probeset(d,i,a) {return in_set(d, localProbes);}
             function in_selectionset(d,i,a) {return in_set(d, localSelection);}
-            function in_subset(d,i,a) {
-                if (Object.keys(localSubset).length == 0) return d; // Always return the object if we have an empty subset. 
-                return in_set(d, localSubset);
-            }
+            function in_subset(d,i,a) { return in_set(d, localSubset);}
+
             var debug_tmp;
             function plot()
             {
-                var working_dataset = dataset;
-                var probe_dataset = dataset.filter(in_probeset);
+                //dataset.forEach(function (d) {d.hidden = !in_subset() })
+                var working_dataset = dataset.filter(function(d) {d.hidden = !in_subset(d); return !d.hidden;});
+                
 
                 //Update scale domains.
                 if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
@@ -180,16 +194,17 @@
 
                 // Add any new records. 
                 svg.selectAll("circle")
-                    .data(working_dataset, keyfunc)
+                    .data(dataset, keyfunc)
                     .enter()
                     .append("circle")
+                    .attr("class", "point")
                     .attr("cx", function(d) {
                         return xScale(d.x);
                     })
                     .attr("cy", function(d) {
                         return yScale(d.y);
                     })
-                    .attr("opacity", 1)
+                    .attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
                     .attr("r", function(d) { 
                         if (d.size != NaN && d.size != null) 
                             return rScale(d.size);
@@ -201,15 +216,16 @@
 
                 //Update all circles
                 svg.selectAll("circle")
-                   .data(working_dataset, keyfunc)
+                   .data(dataset, keyfunc)
                    .transition()
-                   .duration(250)      
+                   .duration(1000)      
                    .attr("cx", function(d) {
                         return xScale(d.x);
                    })
                    .attr("cy", function(d) {
                         return yScale(d.y);
                    })
+                   .attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
                    .attr("r", function(d) { 
                         if (d.size != NaN && d.size != null) 
                             return rScale(d.size);
@@ -219,35 +235,6 @@
                 // Remove missing records.
                 svg.selectAll("circle")
                     .data(dataset, keyfunc)
-                    .exit()
-                    .transition()
-                    .duration(250)
-                    .attr("opacity", 0)
-                    .remove();
-                // Enter probe records. 
-                svg.selectAll("circle.probe")
-                    .data(probe_dataset, keyfunc)
-                    .enter()
-                    .append("circle")
-                    .attr("class", "probe")
-                    .attr("cx", function(d) {
-                        return xScale(d.x);
-                    })
-                    .attr("cy", function(d) {
-                        return yScale(d.y);
-                    })
-                    .attr("opacity", 0.5)
-                    .attr("fill", "none")
-                    .attr("r", function(d) { 
-                        if (d.size != NaN && d.size != null) 
-                            return rScale(d.size)*1.2;
-                        else
-                            return rScale(0)*1.2;
-                    })
-
-                // Remove probe
-                svg.selectAll("circle.probe")
-                    .data(probe_dataset, keyfunc)
                     .exit()
                     .transition()
                     .duration(250)
@@ -269,62 +256,45 @@
 
 
 
-            var toolInterface;
+            var toolPath;
             var SCALE_TYPES = {
                 "Linear": d3.scale.linear,
                 "Logarithmic": d3.scale.log
             };
             var xScaleFunc = d3.scale.linear;
             var yScaleFunc = d3.scale.linear;
-            function yscale_changed()
+
+            function scale_string_to_func(str)
             {
-                console.log("y scale changed")
-                var scale_type = this.getState();
-                yScaleFunc = SCALE_TYPES[scale_type];
-                if (yScaleFunc)
-                {
-                    yScale = yScaleFunc()
-                }
-                else
-                {
-                    console.log("yScaleType Doesn't match anything, setting back to Linear");
-                    toolInterface.properties.xscale_type.state("Linear");
-                }
-                yAxis.scale(yScale);
+                SCALE_TYPES[str] || d3.scale.linear;
+            }
+            function scale_changed()
+            {
+                var xScaleStr = toolPath.getState('xscale_type');
+                var yScaleStr = toolPath.getState('yscale_type');
+                xScaleFunc = SCALE_TYPES[xScaleStr] || d3.scale.linear;
+                yScaleFunc = SCALE_TYPES[yScaleStr] || d3.scale.linear;
+                if (!SCALE_TYPES[xScaleStr]) toolPath.state('xscale_type', 'Linear');
+                if (!SCALE_TYPES[yScaleStr]) toolPath.state('yscale_type', 'Linear');
+
                 update_layout();
             }
-            function xscale_changed()
-            {
-                console.log("x scale changed")
-                var scale_type = this.getState();
-                xScaleFunc = SCALE_TYPES[scale_type];
-                if (xScaleFunc)
-                {
-                    xScale = xScaleFunc()
-                }
-                else
-                {
-                    console.log("xScaleType Doesn't match anything, setting back to Linear");
-                    toolInterface.properties.xscale_type.state("Linear");
-                }
-                xAxis.scale(xScale);
-                update_layout();
-            }
+
             function size_changed( ) 
             {
-                var tmp_size = toolInterface.properties.base_size.getState();
-                var tmp_max_size = toolInterface.properties.max_size.getState();
-                console.log("size_changed called");
+                var tmp_size = toolPath.getState('base_size');
+                var tmp_max_size = toolPath.getState('max_size');
+                
                 if (isNaN(tmp_size))
                 {
                     console.log("base_size invalid, setting to default");
-                    toolInterface.properties.base_size.state(5);
+                    toolPath.state('base_size', 5);
                     tmp_size = 5;
                 }
                 if (isNaN(tmp_max_size))
                 {
                     console.log("max_size invalid, setting to default");
-                    toolInterface.properties.max_size.state(tmp_size);
+                    toolPath.state('max_size', 5);
                     tmp_max_size = 5;
                 }
                 rScale.range([tmp_size, tmp_max_size]);
@@ -336,30 +306,24 @@
             }
             function probe_changed()
             {
-                var remoteProbes = toolInterface.probe_keyset.getValue("this.keys");
-                var remoteProbeState = toolInterface.probe_keyset.getState();
-                localProbes = {};
+                var remoteProbes = toolPath.probe_keyset.getKeys();
+                console.log(remoteProbes);
 
-                for (key in remoteProbes)
-                {
-                    localProbes[WeaveExternalToolUtils.qkey_to_string(remoteProbes[key])] = true;
-                }
+                localProbes = set_from_array(remoteProbes);
+                console.log(localProbes);
+
 
                 plot();
             }
 
             function update_probes()
             {
-                nativeKeys = new opener.Array;
-                for (key in localProbes)
-                {
-                    nativeKeys.push(WeaveExternalToolUtils.string_to_qkey(key));
-                }
-                toolInterface.probe_keyset.vars({keys: nativeKeys}).exec('replaceKeys(keys)');
+                toolPath.probe_keyset.setKeys(Object.keys(localProbes));
             }
             function probed(d)
             {
-                //console.log( "Probed: " + JSON.stringify(d.key) );
+                if (d.hidden) return;
+
                 localProbes = {};
                 localProbes[d.key] = true;
                 update_probes();
@@ -367,67 +331,49 @@
 
             function unprobed(d)
             {
-                //console.log( "Unprobed: " + JSON.stringify(d.key) );
-                localProbes = {};
+                if (d.hidden) return;
+                
+                delete localProbes[d.key];
+                //localProbes = {};
                 update_probes();
             }
 
             function selection_changed()
             {
+                plot();
             }
+
             function subset_changed()
             {
-                data_updated();
+                localSubset = set_from_array(toolPath.subset_filter.filterKeys(localKeys));
+                plot();
             }
-            function layout_changed()
-            {
-                var tmp_w = toolInterface.properties.requested_width.getState();
-                var tmp_h = toolInterface.properties.requested_height.getState();
 
-                var valid = false;
-                if (tmp_h)
-                {
-                    h = tmp_h;
-                    valid = true;
-                }
-                if (tmp_w)
-                {
-                    w = tmp_w;
-                    valid = true;
-                }
-
-                if (valid)
-                {
-                    update_layout();
-                }
-            }
             function weave_setup() 
             {
-                var properties_template = {
-                    DynamicColumn: {'x': data_updated,
-                                    'y': data_updated,
-                                    'color': data_updated,
-                                    'size': data_updated
-                                    },
+                toolPath = weaveExternalInit();
+                toolPath.newProperty('x', 'DynamicColumn', data_updated)
+                        .newProperty('y', 'DynamicColumn', data_updated)
+                        .newProperty('color', 'DynamicColumn', data_updated)
+                        .newProperty('size', 'DynamicColumn', data_updated)
+                        .newProperty('xscale_type', 'LinkableString', scale_changed)
+                        .newProperty('yscale_type', 'LinkableString', scale_changed)
+                        .newProperty('base_size', 'LinkableNumber', size_changed)
+                        .newProperty('max_size', 'LinkableNumber', size_changed);
 
-                    LinkableString: {'xscale_type': xscale_changed,
-                                    'yscale_type': yscale_changed
-                                    },
+                toolPath.probe_keyset.addCallback(probe_changed, true);
+                toolPath.selection_keyset.addCallback(selection_changed, true);
+                toolPath.subset_filter.addCallback(subset_changed, true);
 
-                    LinkableNumber: {'base_size':size_changed,
-                                     'max_size':size_changed,
-                                     'requested_width':layout_changed,
-                                     'requested_height':layout_changed
-                                    }
-                };
-                
-                toolInterface = {};
-                WeaveExternalToolUtils.setup_properties(toolInterface, properties_template);
-                toolInterface.probe_keyset.addCallback(probe_changed);
-                toolInterface.select_keyset.addCallback(selection_changed);
-                toolInterface.subset_keyset.addCallback(subset_changed);
+                window.onresize();
+
             };
+            window.onresize = function () {
+                var obj = get_windowsize();
+                w = obj.x;
+                h = obj.y;
+                update_layout();
+            }
 
-            weave_setup();
             </script>   
 </body></html>
