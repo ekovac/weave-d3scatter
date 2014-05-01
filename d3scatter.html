@@ -6,8 +6,20 @@
         <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
         <script type="text/javascript" src="WeaveExternalHelper.js"></script>
         <style type="text/css">
-            .point circle {
-                fill: none;
+            circle {
+                fill: white;
+                fill-opacity: 0.0;
+                stroke-width: 1.25;
+                stroke: black;
+            }
+            circle.selected {
+                stroke-width: 2;
+            }
+            circle.unselected {
+                filter:url(#blur-effect-1);
+                opacity: 0.5;
+            }
+            circle.probed {
                 stroke: black;
             }
             
@@ -149,6 +161,9 @@
                 if (s[d.key] == undefined) return false;
                 return true;
             }
+            function set_isempty(s) {
+                return Object.keys(s).length == 0;
+            }
             function set_negate(a,b) {
                 var result = {};
                 for (var k in a)
@@ -167,10 +182,7 @@
                 }
                 return set;
             }
-            function quadtree_search()
-            {
 
-            }
             function in_probeset(d,i,a) {return in_set(d, localProbes);}
             function in_selectionset(d,i,a) {return in_set(d, localSelection);}
             function in_subset(d,i,a) { return in_set(d, localSubset);}
@@ -179,9 +191,16 @@
             function plot()
             {
                 //dataset.forEach(function (d) {d.hidden = !in_subset() })
-                var working_dataset = dataset.filter(function(d) {d.hidden = !in_subset(d); return !d.hidden;});
+                dataset.forEach(function(d) {
+                    d.hidden = !in_subset(d); 
+                    d.selected = in_selectionset(d); 
+                    d.unselected = !set_isempty(localSelection) && !d.selected;
+                });
+                if (!set_isempty(localSubset))
+                    var working_dataset = dataset.filter(function(d) {return !d.hidden;});
+                else 
+                    var working_dataset = dataset;
                 
-
                 //Update scale domains.
                 if (xScaleFunc == d3.scale.log) min = 1; else min = 0;              
                 xScale.domain([min, d3.max(working_dataset, function(d) { return d.x; })]);
@@ -197,14 +216,21 @@
                     .data(dataset, keyfunc)
                     .enter()
                     .append("circle")
-                    .attr("class", "point")
+                    .classed("selected", function(d) { return d.selected; })
+                    .classed("unselected", function(d) { return d.unselected; })
                     .attr("cx", function(d) {
-                        return xScale(d.x);
+                        if (d.x != NaN && d.x != null)
+                            return xScale(d.x);
+                        else
+                            return xScale(d.x);
                     })
                     .attr("cy", function(d) {
-                        return yScale(d.y);
+                        if (d.y != NaN && d.y != null)
+                            return yScale(d.y);
+                        else
+                            return yScale(d.y);
                     })
-                    .attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
+                    //.attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
                     .attr("r", function(d) { 
                         if (d.size != NaN && d.size != null) 
                             return rScale(d.size);
@@ -216,16 +242,24 @@
 
                 //Update all circles
                 svg.selectAll("circle")
-                   .data(dataset, keyfunc)
-                   .transition()
-                   .duration(1000)      
-                   .attr("cx", function(d) {
-                        return xScale(d.x);
-                   })
-                   .attr("cy", function(d) {
-                        return yScale(d.y);
-                   })
-                   .attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
+                    .data(dataset, keyfunc)
+                    .classed("selected", function(d) { return d.selected; })
+                    .classed("unselected", function(d) { return d.unselected; })
+                    .transition()
+                    .duration(1000)
+                    .attr("cx", function(d) {
+                        if (d.x != NaN && d.x != null)
+                            return xScale(d.x);
+                        else
+                            return xScale(d.x);
+                    })
+                    .attr("cy", function(d) {
+                        if (d.y != NaN && d.y != null)
+                            return yScale(d.y);
+                        else
+                            return yScale(d.y);
+                    })
+                   //.attr("opacity", function (d) { return d.hidden ? 0 : 1.0; })
                    .attr("r", function(d) { 
                         if (d.size != NaN && d.size != null) 
                             return rScale(d.size);
@@ -340,6 +374,7 @@
 
             function selection_changed()
             {
+                localSelection = set_from_array(toolPath.selection_keyset.getKeys());
                 plot();
             }
 
@@ -365,9 +400,19 @@
                 toolPath.selection_keyset.addCallback(selection_changed, true);
                 toolPath.subset_filter.addCallback(subset_changed, true);
 
+                window.onunload = function () {
+                    toolPath.removeCallback(probe_changed, true);
+                    toolPath.removeCallback(selection_changed, true);
+                    toolPath.removeCallback(subset_changed, true);
+                    toolPath.removeCallback(data_updated, true);
+                    toolPath.removeCallback(scale_changed, true);
+                    toolPath.removeCallback(size_changed, true);
+                };
+
                 window.onresize();
 
             };
+
             window.onresize = function () {
                 var obj = get_windowsize();
                 w = obj.x;
@@ -376,4 +421,13 @@
             }
 
             </script>   
+        <svg id="svg-effects">
+        <filter id="blur-effect-1">
+            <feGaussianBlur stdDeviation="1" />
+            </filter>
+
+            <filter id="blur-effect-2">
+            <feGaussianBlur stdDeviation="2" />
+        </filter>
+        </svg> 
 </body></html>
